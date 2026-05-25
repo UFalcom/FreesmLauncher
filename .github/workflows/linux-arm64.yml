@@ -32,6 +32,9 @@ jobs:
           # Установка базовых инструментов и зависимостей системы
           sudo apt-get -y install build-essential cmake ninja-build extra-cmake-modules scdoc appstream libxcb-cursor-dev libopengl0
           
+          # ДОБАВЛЕНО: Библиотеки cmark и XKB, без которых CMake ругается
+          sudo apt-get -y install libcmark-dev libxkbcommon-dev
+          
           # Установка Qt 6
           sudo apt-get -y install qt6-base-dev qt6-declarative-dev qt6-tools-dev qt6-l10n-tools \
                                   libqt6core5compat6-dev libqt6networkauth6-dev qt6-image-formats-plugins
