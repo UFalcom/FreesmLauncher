@@ -1,0 +1,107 @@
+name: Build Linux ARM64 (aarch64)
+
+on:
+  workflow_dispatch:
+  push:
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+
+env:
+  INSTALL_APPIMAGE_DIR: AppDir
+  INSTALL_PORTABLE_DIR: PortableDir
+
+jobs:
+  build-linux-arm64:
+    name: Build Linux aarch64 (Qt 6)
+    runs-on: ubuntu-24.04-arm # Используем нативный ARM64-сервер GitHub
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get -y update
+          
+          # Установка базовых инструментов и зависимостей системы
+          sudo apt-get -y install build-essential cmake ninja-build extra-cmake-modules scdoc appstream libxcb-cursor-dev libopengl0
+          
+          # Установка Qt 6
+          sudo apt-get -y install qt6-base-dev qt6-declarative-dev qt6-tools-dev qt6-l10n-tools \
+                                  libqt6core5compat6-dev libqt6networkauth6-dev qt6-image-formats-plugins
+                                  
+          # Установка libfuse2 для работы AppImage-утилит на новых версиях Ubuntu
+          sudo apt-get -y install libfuse2t64 || sudo apt-get -y install libfuse2
+
+      - name: Configure CMake
+        run: |
+          mkdir build
+          cmake -S . -B build \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_LTO=ON \
+            -DLauncher_ENABLE_JAVA_DOWNLOADER=ON \
+            -DLauncher_BUILD_PLATFORM=official \
+            -DLauncher_QT_VERSION_MAJOR=6 \
+            -DLauncher_BUILD_ARTIFACT=Linux-Qt6-aarch64 \
+            -G Ninja
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Install to AppDir & PortableDir
+        run: |
+          DESTDIR=$(pwd)/${{ env.INSTALL_APPIMAGE_DIR }} cmake --install build
+          DESTDIR=$(pwd)/${{ env.INSTALL_PORTABLE_DIR }} cmake --install build
+
+      - name: Prepare AppImage tools
+        run: |
+          # Скачиваем aarch64-версии инструментов для сборки AppImage
+          wget -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-aarch64.AppImage"
+          wget -q "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-aarch64.AppImage"
+          wget -q "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-aarch64.AppImage"
+          
+          chmod +x linuxdeploy*.AppImage
+
+      - name: Package AppImage
+        run: |
+          # Копируем системные библиотеки aarch64, необходимые для лаунчера
+          mkdir -p ${{ env.INSTALL_APPIMAGE_DIR }}/usr/lib/
+          cp /usr/lib/aarch64-linux-gnu/libcrypto.so.* ${{ env.INSTALL_APPIMAGE_DIR }}/usr/lib/ || true
+          cp /usr/lib/aarch64-linux-gnu/libssl.so.* ${{ env.INSTALL_APPIMAGE_DIR }}/usr/lib/ || true
+          cp /usr/lib/aarch64-linux-gnu/libOpenGL.so.0* ${{ env.INSTALL_APPIMAGE_DIR }}/usr/lib/ || true
+
+          # Копируем плагины иконок Qt
+          mkdir -p ${{ env.INSTALL_APPIMAGE_DIR }}/usr/plugins/iconengines
+          cp -r /usr/lib/aarch64-linux-gnu/qt6/plugins/iconengines/* ${{ env.INSTALL_APPIMAGE_DIR }}/usr/plugins/iconengines/ || true
+
+          # Настройка переменных для linuxdeploy
+          export OUTPUT=FreesmLauncher-Linux-aarch64.AppImage
+          export QMAKE=/usr/lib/qt6/bin/qmake
+          export EXTRA_QT_PLUGINS="iconengines;imageformats;networkinformation;tls"
+          
+          # Запуск сборки AppImage
+          ./linuxdeploy-aarch64.AppImage --appimage-extract-and-run --appdir=${{ env.INSTALL_APPIMAGE_DIR }} --plugin qt --output appimage
+
+      - name: Package Portable (tar.gz)
+        run: |
+          cd ${{ env.INSTALL_PORTABLE_DIR }}/usr
+          tar -czvf ../../FreesmLauncher-Linux-aarch64.tar.gz *
+
+      - name: Upload AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreesmLauncher-Linux-aarch64-AppImage
+          path: FreesmLauncher-Linux-aarch64.AppImage
+
+      - name: Upload Portable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreesmLauncher-Linux-aarch64-Portable
+          path: FreesmLauncher-Linux-aarch64.tar.gz
