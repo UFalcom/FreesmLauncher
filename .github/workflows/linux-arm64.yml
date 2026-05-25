@@ -29,17 +29,17 @@ jobs:
         run: |
           sudo apt-get -y update
           
-          # Установка базовых инструментов и зависимостей системы
+          # Base tools and system dependencies
           sudo apt-get -y install build-essential cmake ninja-build extra-cmake-modules scdoc appstream libxcb-cursor-dev libopengl0
           
-          # ДОБАВЛЕНО: Библиотеки cmark и XKB, без которых CMake ругается
-          sudo apt-get -y install libcmark-dev libxkbcommon-dev
+          # Libraries + cmark CLI tool (fixes the broken Ubuntu package bug)
+          sudo apt-get -y install libcmark-dev cmark libxkbcommon-dev
           
-          # Установка Qt 6
+          # Qt 6 Setup
           sudo apt-get -y install qt6-base-dev qt6-declarative-dev qt6-tools-dev qt6-l10n-tools \
                                   libqt6core5compat6-dev libqt6networkauth6-dev qt6-image-formats-plugins
                                   
-          # Установка libfuse2 для работы AppImage-утилит на новых версиях Ubuntu
+          # libfuse2 for AppImage tools
           sudo apt-get -y install libfuse2t64 || sudo apt-get -y install libfuse2
 
       - name: Configure CMake
